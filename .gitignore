@@ -1,0 +1,8 @@
+# secrets: never commit these
+.vault_pass*
+*.pem
+*.key
+id_*
+# junk
+*.retry
+__pycache__/
