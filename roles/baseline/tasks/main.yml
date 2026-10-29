@@ -1,0 +1,11 @@
+---
+- name: Check whether sudo-rs is installed
+  ansible.builtin.stat:   # Checks a path and reports what it found. It changes nothing.
+    path: /usr/lib/cargo/bin/sudo
+  register: sudo_rs   # saves that result in a variable named sudo_rs
+
+- name: Use classic sudo instead of sudo-rs
+  community.general.alternatives:   # the module equivalent of the update-alternatives command
+    name: sudo
+    path: /usr/bin/sudo.ws
+  when: sudo_rs.stat.exists   # runs the switch only on hosts where the sudo-rs binary is present

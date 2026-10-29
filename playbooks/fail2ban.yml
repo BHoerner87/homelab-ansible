@@ -1,0 +1,5 @@
+- name: Deploy fail2ban to hosts without CrowdSec
+  hosts: all:!crowdsec:!minecraft
+  become: true
+  roles:
+    - fail2ban
