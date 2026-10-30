@@ -6,7 +6,7 @@
 
 - name: Deploy jail config
   ansible.builtin.template:
-    srce: jail.local.j2
+    src: jail.local.j2
     dest: /etc/fail2ban/jail.local
     mode: "0644"
   notify: Restart fail2ban

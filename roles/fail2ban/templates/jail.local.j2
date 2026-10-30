@@ -7,3 +7,4 @@ backend = systemd
 
 [sshd]
 enable = true
+journalmatch = _SYSTEMD_UNIT=ssh.service + _COMM=sshd
