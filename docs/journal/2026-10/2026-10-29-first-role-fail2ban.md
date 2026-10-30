@@ -42,3 +42,51 @@ One writes to ```jail.local``` rather than ```jail.conf``` beacuse package upgra
 - ```backend = systemd``` reads the journal instead of log files. This matters because recent Debian doesn't write ```/var/log/auth.log``` by default. It requires the ```python3-systemd``` package, so it should be installed alongside fail2ban to be safe.
   - (I am only glancingly familiar with how systemd works so I'm making the following note)\n The **systemd-journald** is a built-in logging system in Linux that collects and stores structured data from the kernel, initrd, services, and user processes. Managed by the systemd-journald service, it replaces or works alongside traditional plain-text logging daemons like syslog.
 - ```[sshd] enabled = true``` turns on the SSH jail. Its filter (the regex that detects failures), port, and ban action are inherited from the stock jail.conf, so one doesn't need to spell them out.
+
+---
+
+I asked Claude to summarize today's work. It offered:
+
+## 2026-10-29 — First real roles: baseline and Fail2Ban
+
+**Started with** a Wazuh "2 authentication failures" tile I couldn't drill into.
+Learned dashboards aggregate; the Events tab shows the documents, where
+`full_log` and `location` identify the source. The "failures" were a Lynis
+suggestion containing the words "authentication errors," matched by rule 2501.
+Suppressed with a level-0 child rule (100110) scoped to `program_name: lynis`.
+Gotcha: wazuh-logtest needs the full syslog line, timestamp included, or
+pre-decoding never extracts `program_name`.
+
+**Finished the fleet bootstrap.** Only one host had actually been bootstrapped
+before. All managed hosts now accept the fleet key as `ansible` with
+passwordless sudo; the bastion manages itself locally and needs `-K`.
+
+**Baseline role.** Recent Ubuntu ships sudo-rs, whose prompt format breaks
+Ansible's become detection (timeouts). The role pins classic sudo via
+alternatives, gated on a `stat` check so it skips hosts without sudo-rs.
+Chicken-and-egg: a host must be switched by hand once before bootstrap.
+
+**Fail2Ban role.** Deployed to hosts not running CrowdSec (excluded by inventory
+group) and not the LXC (can't manage firewall rules). `ignoreip` comes from a
+variable in the private inventory, with an empty default in the role, so no
+network details live in this repo. Whitelisted specific management hosts, not
+subnets, so the service still catches lateral movement.
+
+**Bugs that failed silently**, the most useful lessons of the day:
+- Tasks file named `role.yml` instead of `tasks/main.yml`: role "succeeded"
+  doing nothing. `--list-tasks` catches this.
+- `crowdsec` group didn't exist yet: the `!crowdsec` exclusion matched
+  nothing, with only a warning.
+- An empty `group_vars/all/` directory shadowed `group_vars/all.yml`. Ansible
+  takes the first match and stopped there, so no group vars loaded.
+- One host's Fail2Ban watched `sshd.service` while its journal logs under
+  `ssh.service`: the jail ran but could never ban anyone. Fixed by pinning
+  `journalmatch` in the role.
+
+**Verified end to end:** failed SSH logins from a non-whitelisted host
+incremented failures and triggered bans on every target; the failures showed in
+Wazuh with source IP and user populated. Unbanned afterward.
+
+**Next:** ship `/var/log/fail2ban.log` to Wazuh via centralized `agent.conf` so
+bans appear as alerts; then the SSH hardening role (disable password login
+fleet-wide).
